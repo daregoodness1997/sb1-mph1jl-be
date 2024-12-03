@@ -1,7 +1,7 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const syncController = require('../controllers/sync.controller');
-const { restrictTo } = require('../middleware/auth');
+const syncController = require("../controllers/sync.controller");
+const { authorize } = require("../middleware/auth");
 
 /**
  * @swagger
@@ -27,10 +27,13 @@ const { restrictTo } = require('../middleware/auth');
  *         description: Sync results
  *       401:
  *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - Requires admin role
  *       500:
  *         description: Server error
  */
-router.post('/batch', restrictTo('admin'), syncController.batchSync);
+
+router.post("/batch", authorize(["admin"]), syncController.batchSync);
 
 /**
  * @swagger
@@ -48,7 +51,7 @@ router.post('/batch', restrictTo('admin'), syncController.batchSync);
  *       500:
  *         description: Server error
  */
-router.get('/pending', syncController.getPendingSync);
+router.get("/pending", syncController.getPendingSync);
 
 /**
  * @swagger
@@ -82,9 +85,11 @@ router.get('/pending', syncController.getPendingSync);
  *         description: Conflicts resolved
  *       401:
  *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - Requires admin role
  *       500:
  *         description: Server error
  */
-router.post('/resolve', restrictTo('admin'), syncController.resolveConflicts);
+router.post("/resolve", authorize(["admin"]), syncController.resolveConflicts);
 
 module.exports = router;

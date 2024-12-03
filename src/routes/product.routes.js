@@ -1,40 +1,27 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const productController = require('../controllers/product.controller');
-const { restrictTo } = require('../middleware/auth');
+const productController = require("../controllers/product.controller");
+const { authorize } = require("../middleware/auth");
 
 /**
  * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- * 
  * /products:
  *   get:
- *     summary: Get all products
  *     tags: [Products]
+ *     summary: Get all products
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of products
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
  *       401:
  *         description: Unauthorized - Invalid or missing token
  *       500:
  *         description: Server error
- * 
+ *
  *   post:
- *     summary: Create a new product
  *     tags: [Products]
+ *     summary: Create a new product
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -42,24 +29,31 @@ const { restrictTo } = require('../middleware/auth');
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Product'
+ *             type: object
+ *             required: [name, sku]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               sku:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
  *     responses:
  *       201:
  *         description: Product created successfully
  *       401:
  *         description: Unauthorized - Invalid or missing token
- *       400:
- *         description: Invalid input
- */
-router.get('/', productController.getAllProducts);
-router.post('/', restrictTo('admin'), productController.createProduct);
-
-/**
- * @swagger
+ *       403:
+ *         description: Forbidden - Requires admin role
+ *       500:
+ *         description: Server error
+ *
  * /products/{id}:
  *   get:
- *     summary: Get a product by ID
  *     tags: [Products]
+ *     summary: Get product by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -75,10 +69,12 @@ router.post('/', restrictTo('admin'), productController.createProduct);
  *         description: Unauthorized - Invalid or missing token
  *       404:
  *         description: Product not found
- * 
+ *       500:
+ *         description: Server error
+ *
  *   put:
- *     summary: Update a product
  *     tags: [Products]
+ *     summary: Update product
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -92,18 +88,29 @@ router.post('/', restrictTo('admin'), productController.createProduct);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Product'
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               price:
+ *                 type: number
  *     responses:
  *       200:
  *         description: Product updated successfully
  *       401:
  *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - Requires admin role
  *       404:
  *         description: Product not found
- * 
+ *       500:
+ *         description: Server error
+ *
  *   delete:
- *     summary: Delete a product
  *     tags: [Products]
+ *     summary: Delete product
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -117,11 +124,19 @@ router.post('/', restrictTo('admin'), productController.createProduct);
  *         description: Product deleted successfully
  *       401:
  *         description: Unauthorized - Invalid or missing token
+ *       403:
+ *         description: Forbidden - Requires admin role
  *       404:
  *         description: Product not found
+ *       500:
+ *         description: Server error
  */
-router.get('/:id', productController.getProduct);
-router.put('/:id', restrictTo('admin'), productController.updateProduct);
-router.delete('/:id', restrictTo('admin'), productController.deleteProduct);
+
+router.get("/", productController.getAllProducts);
+router.post("/", authorize(["admin"]), productController.createProduct);
+
+router.get("/:id", productController.getProduct);
+router.put("/:id", authorize(["admin"]), productController.updateProduct);
+router.delete("/:id", authorize(["admin"]), productController.deleteProduct);
 
 module.exports = router;
