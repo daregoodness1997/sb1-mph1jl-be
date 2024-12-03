@@ -165,10 +165,15 @@ const authController = {
 
       const user = await User.findOne({
         passwordResetToken: token,
-        passwordResetExpires: { $gt: Date.now() },
       });
 
-      if (!user) {
+      // Get team info
+      const team = await Team.findById(user.teamId);
+      if (!team || !team.isActive) {
+        return res.status(403).json({ message: "Team is inactive" });
+      }
+
+      if (!user || user.passwordResetExpires < Date.now()) {
         return res
           .status(400)
           .json({ message: "Invalid or expired reset token" });
@@ -179,7 +184,12 @@ const authController = {
       user.passwordResetExpires = undefined;
       await user.save();
 
-      const jwtToken = signToken(user._id);
+      // Generate JWT
+      const jwtToken = jwt.sign(
+        { userId: user._id, teamId: user.teamId },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
       res.json({ token: jwtToken });
     } catch (error) {
       res.status(400).json({ message: error.message });
@@ -258,9 +268,7 @@ const authController = {
         // verificationTokenExpiry: { $gt: Date.now() },
       });
 
-      console.log(token, user, ">>>>verifying tokn");
-
-      if (!user) {
+      if (!user || user.verificationTokenExpiry < Date.now()) {
         return res.status(400).json({ message: "Invalid or expired token" });
       }
 
