@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
       minlength: 8,
       select: false,
     },
@@ -44,6 +43,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    passwordSalt: {
+      type: String,
+    },
+    pinSalt: {
+      type: String,
+    },
     verificationToken: String,
     verificationTokenExpires: Date,
     passwordResetToken: String,
@@ -51,6 +56,10 @@ const userSchema = new mongoose.Schema(
     onboardingCompleted: {
       type: Boolean,
       default: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     lastLogin: Date,
   },
@@ -61,13 +70,15 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
 userSchema.pre("save", async function (next) {
   if (this.isModified("pin")) {
-    this.pin = await bcrypt.hash(this.pin, 10);
+    const salt = await bcrypt.genSalt(10);
+    this.pin = await bcrypt.hash(this.pin, salt);
   }
   next();
 });

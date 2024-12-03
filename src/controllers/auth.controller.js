@@ -2,11 +2,11 @@ const User = require("../models/User");
 const Team = require("../models/Team");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const {
   sendVerificationEmail,
   sendPasswordResetEmail,
 } = require("../utils/email");
+const crypto = require("../utils/crypto");
 const authController = {
   register: async (req, res) => {
     try {
@@ -36,7 +36,6 @@ const authController = {
       if (existingUser) {
         return res.status(409).json({ message: "Email already registered" });
       }
-      console.log(">>>>> debugger");
       // Create team first
       const team = new Team({
         name: businessName,
@@ -49,18 +48,19 @@ const authController = {
         },
       });
 
-      // Generate verification token
-      const verificationToken = crypto.randomBytes(32).toString("hex");
+      await team.save();
+
+      const verificationToken = crypto.generateSalt(32).toString("hex");
       const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
       // Create user
       const user = new User({
+        ...req.body,
         email,
-        password: await bcrypt.hash(password, 10),
         firstName,
         lastName,
         role: "admin", // First user is always admin
-        pin: crypto.randomInt(100000, 999999).toString(), // Generate random 6-digit PIN
+        pin: crypto.generatePin(), // Generate random 6-digit PIN
         verificationToken,
         verificationTokenExpiry,
         isEmailVerified: false,
@@ -70,8 +70,6 @@ const authController = {
       try {
         await team.save();
       } catch (error) {
-        console.error("Registration error:", error);
-
         return res.status(500).json({
           message: "Error creating team",
           error:
@@ -93,9 +91,8 @@ const authController = {
           await Team.findByIdAndDelete(team._id);
         }
 
-        console.log(error.message);
         return res.status(500).json({
-          message: "Error saving user data",
+          message: "Error saving user data: " + error.message,
           error:
             process.env.NODE_ENV === "development" ? error.message : undefined,
         });
@@ -131,7 +128,7 @@ const authController = {
       });
     } catch (error) {
       res.status(500).json({
-        message: "An error occurred during registration",
+        message: "An error occurred during registration: " + error.message,
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       });
@@ -149,7 +146,7 @@ const authController = {
           .json({ message: "No user found with this email" });
       }
 
-      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetToken = crypto.generateSalt(32).toString("hex");
       user.passwordResetToken = resetToken;
       user.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
       await user.save();
@@ -198,8 +195,8 @@ const authController = {
         return res.status(400).json({ message: "All fields are required" });
       }
 
-      // Find user and populate team
-      const user = await User.findOne({ email });
+      // Find users
+      const user = await User.findOne({ email }).select("+password");
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -210,9 +207,10 @@ const authController = {
       }
 
       // Check password
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      console.log(req.body, user, ">>>>debugger");
+      const isValidPassword = await user.comparePassword(password);
       if (!isValidPassword) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        return res.status(401).json({ message: "Invalid email or password" });
       }
 
       // Check if user is active
@@ -225,6 +223,9 @@ const authController = {
       if (!team || !team.isActive) {
         return res.status(403).json({ message: "Team is inactive" });
       }
+
+      user.lastLogin = Date.now();
+      await user.save();
 
       // Generate JWT
       const token = jwt.sign(
@@ -254,8 +255,10 @@ const authController = {
 
       const user = await User.findOne({
         verificationToken: token,
-        verificationTokenExpiry: { $gt: Date.now() },
+        // verificationTokenExpiry: { $gt: Date.now() },
       });
+
+      console.log(token, user, ">>>>verifying tokn");
 
       if (!user) {
         return res.status(400).json({ message: "Invalid or expired token" });
